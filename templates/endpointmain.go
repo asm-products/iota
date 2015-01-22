@@ -13,9 +13,9 @@ var userf = {{.Package}}.{{.Name}}
 
 type Iotasvc struct{}
 
-func (isvc *Iotasvc) ServeHttp(r *http.Request, out *string) (err error) {
-	err = userf(r, out)
-	return
+func (isvc *Iotasvc) ServeHttp(in string, out *string) (err error) {
+	*out, err = userf(in)
+	return err
 }
 
 func getPort() (port int) {

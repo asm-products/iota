@@ -6,9 +6,6 @@ import (
 	"fmt"
 	"github.com/asm-products/iota/endpointmgr"
 	"github.com/gorilla/mux"
-	"go/ast"
-	"go/parser"
-	"go/token"
 	"html/template"
 	"io"
 	"io/ioutil"
@@ -19,7 +16,7 @@ import (
 	txttemplate "text/template"
 )
 
-const ENDPOINT_ROOT = "endpoints"
+const ENDPOINT_ROOT = "user"
 
 type srcTemplateData struct {
 	User     string
@@ -43,14 +40,13 @@ func endpointHandler(w http.ResponseWriter, r *http.Request, epm *endpointmgr.En
 		Package: vars["package"],
 		Name:    vars["fname"],
 	}
-	var epResponse *string
-	err := epm.Call(ep, r, epResponse)
+	resp, err := epm.Call(ep, r)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		fmt.Fprint(w, err)
 	} else {
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprint(w, *epResponse)
+		fmt.Fprint(w, resp)
 	}
 }
 
@@ -107,12 +103,11 @@ func srcHandler(w http.ResponseWriter, r *http.Request, epm *endpointmgr.Endpoin
 		}
 		msg := fmt.Sprintf("Source file %s saved.\n\n", std.Filename)
 		// Build src
-		ep, err := doBuild(src, std.Package, userDir)
+		ep, err := doBuild(src, std.Package, userDir, vars["user"], epm)
 		if err != nil {
 			fmt.Fprintf(w, "%sBuild Errors:\n%s\n\nSource:\n%s", msg, err, src)
 			return
 		}
-		ep.User = vars["user"]
 		fmt.Fprintf(w, "%sBuild Success!\n%s\n", msg, src)
 		epm.Update(ep)
 		fmt.Fprint(w, "Service Started.")
@@ -136,8 +131,8 @@ func saveSrcPost(r *http.Request, filename string) (status int, src string, err 
 	return http.StatusOK, src, err
 }
 
-func doBuild(src string, packageNameURL string, userDir string) (ep endpointmgr.Endpoint, err error) {
-	ep, err = parseSrc(src)
+func doBuild(src string, packageNameURL string, userDir string, user string, epm *endpointmgr.EndpointMgr) (ep endpointmgr.Endpoint, err error) {
+	ep, err = epm.GetEndpointFromSrc(src, user)
 	if err != nil {
 		return
 	}
@@ -147,7 +142,7 @@ func doBuild(src string, packageNameURL string, userDir string) (ep endpointmgr.
 		UserDir:  userDir,
 	}
 	if ep.Package != packageNameURL {
-		msg := fmt.Sprintf("Source package name '%s' does not match URL packages name '%s'", ep.Package, packageNameURL)
+		msg := fmt.Sprintf("Source package name '%s' does not match URL package's name '%s'", ep.Package, packageNameURL)
 		return ep, errors.New(msg)
 	}
 	fmt.Println("Package:", ep.Package, "Name:", ep.Name)
@@ -157,77 +152,6 @@ func doBuild(src string, packageNameURL string, userDir string) (ep endpointmgr.
 		return
 	}
 	err = bd.build()
-	return
-}
-
-func parseSrc(src string) (ep endpointmgr.Endpoint, err error) {
-	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, "foo.go", src, 0)
-	if err != nil {
-		return
-	}
-	ep.Package = f.Name.Name
-
-	// find the first exported function that matches the (*http.Request, *string) (error) signature
-	// Can't rely on 'http' (user could redifne) so just rely on the actual fn name for now
-	for _, d := range f.Decls {
-		switch x := d.(type) {
-		case *ast.FuncDecl:
-			ast.Print(fset, x)
-			plist := x.Type.Params.List
-			if !x.Name.IsExported() || len(plist) != 2 || x.Type.Results == nil || len(x.Type.Results.List) != 1 {
-				fmt.Println(x.Name.Name, "is not a valid function (wrong basic properties)")
-				continue
-			}
-
-			// both params are *ast.StarExpr types, so we can do in a loop
-			expectNames := [2]string{"Request", "string"}
-			paramsOk := false
-			for i, expect := range expectNames {
-				ps, psok := plist[i].Type.(*ast.StarExpr)
-				if psok {
-					var name string
-					if i == 0 {
-						var se *ast.SelectorExpr
-						se, paramsOk = ps.X.(*ast.SelectorExpr)
-						if paramsOk {
-							name = se.Sel.Name
-						}
-					} else {
-						var ident *ast.Ident
-						ident, paramsOk = ps.X.(*ast.Ident)
-						if paramsOk {
-							name = ident.Name
-						}
-					}
-					paramsOk = paramsOk && (name == expect)
-				} else {
-					paramsOk = false
-				}
-				if !paramsOk {
-					fmt.Println(x.Name.Name, "is not a valid function, parameter", i, "is not *", expect)
-					break
-				}
-			}
-
-			returnOk := false
-			if paramsOk {
-				// check for error return
-				result, ok := x.Type.Results.List[0].Type.(*ast.Ident)
-				if ok && result.Name == "error" {
-					returnOk = true
-				} else {
-					fmt.Println(x.Name.Name, "does not return error")
-				}
-			}
-
-			if paramsOk && returnOk {
-				ep.Name = x.Name.Name
-				return ep, nil
-			}
-		} // end case
-	}
-	err = errors.New("Unable to find an exported function with signature (*http.Request, *string) error")
 	return
 }
 
