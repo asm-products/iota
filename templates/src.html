@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang=en>
+<head>
+<meta charset=utf-8>
+<title>src {{.User}}/{{.Package}}/{{.Filename}}</title>
+</head>
+<body>
+<h1>Source for {{.User}}/{{.Package}}/{{.Filename}}</h1>
+
+{{ if .ErrMsg }}
+<div class="errmsg">
+The file was not found. Please enter source below if you would like to create it.
+</div>
+{{ end}}
+
+<form method=POST >
+<textarea name=src cols=80 rows=25>{{ .Src }}</textarea>
+<br>
+<input type=submit value="Save &amp; Build">
+</form>
+
+<hr>
+<h3>Debug</h3>
+<dl>
+	<dt>ErrMsg</dt>
+	<dd>{{.ErrMsg}}</dd>
+</dl>
+
+</body>
