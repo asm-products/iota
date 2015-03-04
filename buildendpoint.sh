@@ -16,7 +16,7 @@ echo "PACKAGE_NAME: $PACKAGE_NAME"
 echo "ENDPOINTMAIN: $ENDPOINTMAIN"
 
 # Make our temporary directory (to act as part of GOPATH)
-TMP_DIR=`mktemp -d`
+TMP_DIR=`mktemp -d /tmp/iota.build.XXXXXXXXXX`
 EPM_BASENAME=`basename $ENDPOINTMAIN`
 mkdir -p "$TMP_DIR/src/$EPM_BASENAME"
 mv $ENDPOINTMAIN "$TMP_DIR/src/$EPM_BASENAME/$EPM_BASENAME.go"

@@ -189,11 +189,11 @@ func (epm *EndpointMgr) serve() {
 			paramValues, ok := (*params.FormValues)[paramName]
 			if !ok {
 				params.Returnch <- returnValues{Err: errors.New("Parameter '" + paramName + "' not found")}
-				return
+				continue
 			} else if len(paramValues) != 1 {
 				params.Returnch <- returnValues{Err: errors.New(fmt.Sprintf(
 					"Multiple values for parameter '%s'", paramName))}
-				return
+				continue
 			}
 			params.Parameter = paramValues[0]
 			go callrpc(params, proc)
